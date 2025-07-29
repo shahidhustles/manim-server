@@ -367,9 +367,26 @@ def create_manim_video(topic, explanation_points, output_path):
 
         # Render the scene
         import subprocess
+        import shutil
 
-        # Use the full path to manim in the virtual environment
-        manim_path = "/Users/shahidpatel/codes/hacakthon/manim-server/.venv/bin/manim"
+        # Find manim executable dynamically
+        manim_path = shutil.which("manim")
+        if not manim_path:
+            # Fallback: try common locations
+            possible_paths = [
+                "/opt/venv/bin/manim",  # Railway/Render common path
+                "/usr/local/bin/manim",  # System install
+                "manim",  # Hope it's in PATH
+            ]
+            for path in possible_paths:
+                if shutil.which(path) or os.path.exists(path):
+                    manim_path = path
+                    break
+            else:
+                manim_path = "manim"  # Last resort - let subprocess handle the error
+
+        logger.info(f"Using manim executable: {manim_path}")
+
         cmd = [
             manim_path,
             "-qm",  # Medium quality
