@@ -82,7 +82,7 @@ class TopicExplanationScene(Scene):
 def generate_explanation_points(topic):
     """Generate explanation points using Gemini API"""
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash-002")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""
         Create a concise educational explanation for the topic: "{topic}"
         
@@ -113,7 +113,7 @@ def generate_explanation_points(topic):
 def generate_transcript(topic, explanation_points):
     """Generate a natural transcript using Gemini API"""
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash-002")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         points_text = "\n".join([f"- {point}" for point in explanation_points])
 
         prompt = f"""
@@ -183,7 +183,7 @@ def generate_audio(transcript, output_path):
 def generate_manim_code(topic, explanation_points):
     """Generate Manim animation code using Gemini API"""
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash-002")
+        model = genai.GenerativeModel("gemini-2.5-pro")
         points_text = "\n".join([f"- {point}" for point in explanation_points])
 
         prompt = f"""
@@ -192,7 +192,7 @@ def generate_manim_code(topic, explanation_points):
         Key points to animate:
         {points_text}
         
-        CRITICAL CONSTRAINTS:
+        CRITICAL CONSTRAINTS - FOLLOW EXACTLY:
         - Create a class called TopicScene that extends Scene
         - Animation should be exactly 30 seconds long
         - NEVER use ImageMobject, SVGMobject, or any external files
@@ -201,6 +201,18 @@ def generate_manim_code(topic, explanation_points):
         - NEVER use 2D coordinates like [x, y] - always include the z-component
         - For Polygon, use format: Polygon([x1, y1, 0], [x2, y2, 0], [x3, y3, 0])
         - No external dependencies or file references
+        
+        SYNTAX RULES - NO TYPOS ALLOWED:
+        - Text() parameters: ONLY use 'font_size', 'color', 'weight', 'slant' - NO other parameters
+        - NEVER use 'text_color', 't_color', 'font_color' - ONLY use 'color'
+        - For colors: use BLUE, GREEN, RED, ORANGE, PURPLE, YELLOW, GOLD, PINK, TEAL (all uppercase)
+        - Rectangle/Square: use 'width', 'height', 'color', 'fill_color', 'fill_opacity', 'stroke_width'
+        - Circle: use 'radius', 'color', 'fill_color', 'fill_opacity', 'stroke_width'
+        - Arrow: use 'start', 'end', 'color', 'buff', 'stroke_width'
+        - VGroup: VGroup(obj1, obj2, obj3) - no special parameters
+        - Common methods: .to_edge(UP/DOWN/LEFT/RIGHT), .move_to(position), .next_to(object, direction), .shift(vector)
+        - Animation methods: Write(), FadeIn(), FadeOut(), Create(), GrowFromCenter(), Transform()
+        - DOUBLE CHECK: Every parameter name must be spelled exactly as shown above
         
         SCENE MANAGEMENT (VERY IMPORTANT):
         - Use FadeOut() to remove elements before introducing new ones
@@ -288,7 +300,19 @@ def generate_manim_code(topic, explanation_points):
         
         Now create a similar engaging animation for "{topic}" that incorporates the explanation points naturally into visual elements. Be creative and make it topic-specific!
         
+        FINAL CHECKLIST BEFORE SUBMITTING CODE:
+        ✓ Class name is exactly "TopicScene" (not VideoScene, AnimationScene, etc.)
+        ✓ All Text() objects use ONLY 'color' parameter (never t_color, text_color, font_color)
+        ✓ All coordinates are 3D: [x, y, 0] format (never [x, y])
+        ✓ Only using: UP, DOWN, LEFT, RIGHT, ORIGIN, or [x, y, 0]
+        ✓ Colors are uppercase: BLUE, GREEN, RED, ORANGE, PURPLE, YELLOW, GOLD
+        ✓ No external files, images, or SVG imports
+        ✓ Using self.clear() or FadeOut() to manage scene transitions
+        ✓ Code compiles without syntax errors
+        ✓ All parameter names are spelled correctly
+        
         IMPORTANT: Only return the Python code, no explanations or markdown formatting.
+        DO NOT use backticks or any markdown. Just pure Python code starting with "from manim import *"
         """
 
         response = model.generate_content(prompt)
@@ -355,6 +379,22 @@ def create_manim_video(topic, explanation_points, output_path):
         # Generate Manim code using AI
         logger.info("Generating Manim animation code...")
         manim_code = generate_manim_code(topic, explanation_points)
+        
+        # Validate the generated code for common mistakes
+        logger.info("Validating generated Manim code...")
+        invalid_params = ['t_color', 'text_color', 'font_color', 'txt_color']
+        for invalid_param in invalid_params:
+            if invalid_param in manim_code:
+                logger.warning(f"Found invalid parameter '{invalid_param}' in generated code, fixing...")
+                manim_code = manim_code.replace(f'{invalid_param}=', 'color=')
+        
+        # Check for syntax errors
+        try:
+            compile(manim_code, '<string>', 'exec')
+            logger.info("Code validation passed!")
+        except SyntaxError as se:
+            logger.error(f"Syntax error in generated code: {se}")
+            raise Exception(f"Generated code has syntax errors: {se}")
 
         # Create a temporary scene file
         scene_file = os.path.join(
@@ -364,31 +404,21 @@ def create_manim_video(topic, explanation_points, output_path):
 
         with open(scene_file, "w") as f:
             f.write(manim_code)
+        
+        logger.info(f"Manim code saved to: {scene_file}")
 
         # Render the scene
         import subprocess
         import shutil
+        import sys
 
-        # Find manim executable dynamically
-        manim_path = shutil.which("manim")
-        if not manim_path:
-            # Fallback: try common locations
-            possible_paths = [
-                "/opt/venv/bin/manim",  # Railway/Render common path
-                "/usr/local/bin/manim",  # System install
-                "manim",  # Hope it's in PATH
-            ]
-            for path in possible_paths:
-                if shutil.which(path) or os.path.exists(path):
-                    manim_path = path
-                    break
-            else:
-                manim_path = "manim"  # Last resort - let subprocess handle the error
-
-        logger.info(f"Using manim executable: {manim_path}")
+        # Use python -m manim which is more reliable than calling manim directly
+        logger.info(f"Using Python executable: {sys.executable}")
 
         cmd = [
-            manim_path,
+            sys.executable,
+            "-m",
+            "manim",
             "-qm",  # Medium quality
             "--format",
             "mp4",
