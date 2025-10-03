@@ -96,7 +96,7 @@ def generate_explanation_points(topic):
         Format your response as a simple list with each point on a new line, no numbering or bullets.
         """
 
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, request_options={"timeout": 600})
         points = [
             line.strip() for line in response.text.strip().split("\n") if line.strip()
         ]
@@ -133,7 +133,7 @@ def generate_transcript(topic, explanation_points):
         Make it sound like an enthusiastic teacher explaining the concept.
         """
 
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, request_options={"timeout": 600})
         return response.text.strip()
     except Exception as e:
         logger.error(f"Error generating transcript: {e}")
@@ -315,7 +315,7 @@ def generate_manim_code(topic, explanation_points):
         DO NOT use backticks or any markdown. Just pure Python code starting with "from manim import *"
         """
 
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, request_options={"timeout": 600})
 
         # Clean the response - remove markdown formatting if present
         code = response.text.strip()
